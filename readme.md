@@ -16,6 +16,12 @@ Inside of the directory where the main package is located type and run
 go run .
 ```
 
+Or if not a go module(doesn't contain `go.mod`)
+
+```bash
+go run <filename>.go
+```
+
 ## Packages, variables, and functions
 
 [Link](./0.packages-vars-functions/packagesVarsFunctions.go) to first program
@@ -24,9 +30,7 @@ go run .
 
 [Link](./1.control-flow-statements/controlFlow.go) to control flow
 
-
-
-## More types: structs, slices, and maps.
+## More types: structs, slices, and maps
 
 [Link](.types/Types.go) to control flow
 
