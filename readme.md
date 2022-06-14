@@ -32,7 +32,11 @@ go run <filename>.go
 
 ## More types: structs, slices, and maps
 
-[Link](.types/Types.go) to control flow
+[Link](./2.types-structs-slices-maps/types.go) to control flow
+
+## Methods and interfaces
+
+[Link](./3.methods-interfaces/methodsAndInterfaces.go) to methods and interfaces
 
 How to setup a module, more info on the [link](https://go.dev/doc/tutorial/getting-started):
 
