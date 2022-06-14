@@ -22,10 +22,14 @@ Or if not a go module(doesn't contain `go.mod`)
 go run <filename>.go
 ```
 
-## How to setup a module, more info on the [link](https://go.dev/doc/tutorial/getting-started):
+## How to setup a module
+
+Steps:
 
 * To create the module: `go mod init <name>`
 * Fetch module dependencies `go mod tidy`
+
+More info on the [link](https://go.dev/doc/tutorial/getting-started)
 
 ## Packages, variables, and functions
 
