@@ -46,3 +46,7 @@ More info on the [link](https://go.dev/doc/tutorial/getting-started)
 ## Methods and interfaces
 
 [Link](./3.methods-interfaces/methodsAndInterfaces.go) to methods and interfaces
+
+## Generics
+
+[Link](./4.gemerics/generics.go) to generics
