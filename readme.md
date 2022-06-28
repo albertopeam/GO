@@ -49,4 +49,8 @@ More info on the [link](https://go.dev/doc/tutorial/getting-started)
 
 ## Generics
 
-[Link](./4.gemerics/generics.go) to generics
+[Link](./4.generics/generics.go) to generics
+
+## Concurrency
+
+[Link](./5.concurrency/concurrency.go) to concurrency
