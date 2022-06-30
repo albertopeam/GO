@@ -4,6 +4,7 @@ import (
     "fmt"
     "time"
     "golang.org/x/tour/tree"
+    "sync"
 )
 
 func main() {
@@ -18,7 +19,11 @@ func main() {
     selectStatement()
     selectDefault()
 
-    equivalentBinaryTrees()
+    equivalentBinaryTreesExercise()
+
+    mutex()
+
+    webCrawlerExercise()
 }
 
 /*
@@ -303,7 +308,7 @@ func Same(t1, t2 *tree.Tree) bool {
     return Equals(a1, a2)
 }
 
-func equivalentBinaryTrees() {
+func equivalentBinaryTreesExercise() {
     fmt.Println("equivalentBinaryTrees------------")
 
     fmt.Println("TestWalk")
@@ -323,4 +328,165 @@ func equivalentBinaryTrees() {
     fmt.Println("T(1) and T(1) are equal?", t1Equals)
     var t1t2Equals = Same(t1, t2)
     fmt.Println("T(1) and T(2) are equal?", t1t2Equals)
+}
+
+/*
+We've seen how channels are great for communication among goroutines.
+But what if we don't need communication? What if we just want to make sure only one goroutine can access a variable at a time to avoid conflicts?
+This concept is called mutual exclusion, and the conventional name for the data structure that provides it is mutex.
+Go's standard library provides mutual exclusion with sync.Mutex and its two methods:
+Lock
+Unlock
+We can define a block of code to be executed in mutual exclusion by surrounding it with a call to Lock and Unlock as shown on the Inc method.
+We can also use defer to ensure the mutex will be unlocked as in the Value method.
+*/
+
+// SafeCounter is safe to use concurrently.
+type SafeCounter struct {
+	mu sync.Mutex
+	v map[string]int
+}
+
+// Inc increments the counter for the given key.
+func (c *SafeCounter) Inc(key string) {
+	c.mu.Lock()
+	// Lock so only one goroutine at a time can access the map c.v.
+	c.v[key]++
+	c.mu.Unlock()
+}
+
+// Value returns the current value of the counter for the given key.
+func (c *SafeCounter) Value(key string) int {
+	c.mu.Lock()
+	// Lock so only one goroutine at a time can access the map c.v.
+	defer c.mu.Unlock()
+	return c.v[key]
+}
+
+func mutex() {
+    fmt.Println("mutex------------")
+    c := SafeCounter{v: make(map[string]int)} // why is not needed to initialize the mutex? mu sync.Mutex is ready to use immediately upon allocation or just declaration(all internal stuff is initialized with zeros). explanation: https://go.dev/doc/effective_go#data
+	for i := 0; i < 1000; i++ {
+		go c.Inc("somekey")
+	}
+
+	time.Sleep(time.Second)
+	fmt.Println(c.Value("somekey"))
+}
+
+/*
+In this exercise you'll use Go's concurrency features to parallelize a web crawler.
+Modify the Crawl function to fetch URLs in parallel without fetching the same URL twice.
+Hint: you can keep a cache of the URLs that have been fetched on a map, but maps alone are not safe for concurrent use!
+*/
+type Fetcher interface {
+	// Fetch returns the body of URL and
+	// a slice of URLs found on that page.
+	Fetch(url string) (body string, urls []string, err error)
+}
+
+// fakeFetcher is Fetcher that returns canned results.
+type fakeFetcher map[string]*fakeResult
+
+type fakeResult struct {
+	body string
+	urls []string
+}
+
+func (f fakeFetcher) Fetch(url string) (string, []string, error) {
+	if res, ok := f[url]; ok {
+		return res.body, res.urls, nil
+	}
+	return "", nil, fmt.Errorf("not found: %s", url)
+}
+
+type Crawled struct {
+    mu sync.Mutex
+    crawled map[string]bool
+}
+
+func (c *Crawled) Add(url string ) {
+    c.mu.Lock()
+    c.crawled[url] = true 
+    c.mu.Unlock()
+}
+
+func (c *Crawled) Contains(url string) bool {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    _, exists := c.crawled[url]
+    return exists
+}
+
+func (c *Crawled) Empty() bool {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    return len(c.crawled) == 0
+}
+
+// Crawl uses fetcher to recursively crawl
+// pages starting with url, to a maximum of depth.
+func Crawl(url string, depth int, fetcher Fetcher, crawled Crawled, wg *sync.WaitGroup) {
+    if !crawled.Empty() {
+        defer wg.Done()
+    }    
+	if depth <= 0 {        
+		return
+	}
+    if crawled.Contains(url) {
+        return
+    }
+	body, urls, err := fetcher.Fetch(url)    
+    crawled.Add(url)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}    
+	fmt.Printf("found: %s %q %v\n", url, body, urls)
+	for _, u := range urls {
+        wg.Add(1)
+		go Crawl(u, depth-1, fetcher, crawled, wg)
+	}
+	return
+}
+
+func webCrawlerExercise() {
+    fmt.Println("webCrawlerExercise------------")
+    // fetcher is a populated fakeFetcher.
+    var fetcher = fakeFetcher{
+        "https://golang.org/": &fakeResult{
+            "The Go Programming Language",
+            []string{
+                "https://golang.org/pkg/",
+                "https://golang.org/cmd/",
+            },
+        },
+        "https://golang.org/pkg/": &fakeResult{
+            "Packages",
+            []string{
+                "https://golang.org/",
+                "https://golang.org/cmd/",
+                "https://golang.org/pkg/fmt/",
+                "https://golang.org/pkg/os/",
+            },
+        },
+        "https://golang.org/pkg/fmt/": &fakeResult{
+            "Package fmt",
+            []string{
+                "https://golang.org/",
+                "https://golang.org/pkg/",
+            },
+        },
+        "https://golang.org/pkg/os/": &fakeResult{
+            "Package os",
+            []string{
+                "https://golang.org/",
+                "https://golang.org/pkg/",
+            },
+        },
+    }
+    var wg sync.WaitGroup
+    crawled := Crawled{crawled: make(map[string]bool)}    
+    Crawl("https://golang.org/", 4, fetcher, crawled, &wg)
+    wg.Wait()
 }
