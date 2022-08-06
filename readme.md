@@ -27,7 +27,9 @@ go run <filename>.go
 Steps:
 
 * To create the module: `go mod init <name>`
-* Fetch module dependencies `go mod tidy`
+* Add dependency `go get <url>`
+* Install dependency `go install <url>`
+* Synchronize code dependencies `go mod tidy`
 
 More info on the [link](https://go.dev/doc/tutorial/getting-started)
 
