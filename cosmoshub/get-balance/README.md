@@ -32,7 +32,7 @@ More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html
 
 ### GO
 
-Example in the `main.go` file
+Example in the `main.go` file. Download dependencies: `go mod tidy`. Run: `go run main.go`
 
 More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html#programmatically-via-go)
 
@@ -51,3 +51,10 @@ Querying a service via curl.
 The list of Swagger endpoints are available is in `host:1317/swagger`. It can be disabled.
 
 More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html#using-the-rest-endpoints)
+
+## How to sign a transaction?
+
+Info and examples on [cosmos doc](https://docs.cosmos.network/master/run-node/txs.html)
+Testnets & Faucets [cosmos doc](https://github.com/cosmos/testnets)
+
+### Create an account

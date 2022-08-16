@@ -2,7 +2,11 @@ module cosmosGetBalance
 
 go 1.18
 
-require github.com/cosmos/cosmos-sdk v0.46.0-beta2.0.20220805221720-78e71f1d9392
+require (
+	github.com/cosmos/cosmos-sdk v0.46.0-beta2.0.20220805221720-78e71f1d9392
+	github.com/cosmos/go-bip39 v1.0.0
+	google.golang.org/grpc v1.48.0
+)
 
 require (
 	cosmossdk.io/errors v1.0.0-beta.7 // indirect
@@ -19,7 +23,6 @@ require (
 	github.com/confio/ics23/go v0.7.0 // indirect
 	github.com/cosmos/btcutil v1.0.4 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-alpha7 // indirect
-	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/gorocksdb v1.2.0 // indirect
 	github.com/cosmos/iavl v0.19.1 // indirect
 	github.com/cosmos/ledger-cosmos-go v0.11.1 // indirect
@@ -91,7 +94,6 @@ require (
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20220805133916-01dd62135a58 // indirect
-	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.66.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
