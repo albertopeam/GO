@@ -18,14 +18,18 @@ import (
 )
 
 func main() {
-	//queryState()
-	createOrLoadAccounts(true)
+	// Read State in mainnet
+	queryProductionState()
+
+	// Write state in testnet
+	loadOrCreateAccounts(false)
+	//TODO: go to a faucet to deposit coins in the addr1. Wait the program until user explicitly taps enter
 	sendTransaction()
-	verifyBalbance()
+	verifyBalance()
 }
 
 // full tutorial https://docs.cosmos.network/v0.46/run-node/interact-node.html
-func queryState() {
+func queryProductionState() {
 	// create an addr. doc https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types
 	sg1Addr, err := sdk.AccAddressFromBech32("cosmos196ax4vc0lwpxndu9dyhvca7jhxp70rmcfhxsrt")
 	if err != nil {
@@ -68,63 +72,11 @@ func queryState() {
 	fmt.Println("all balances", bankAllRes.String())
 }
 
-func createOrLoadAccounts(generated bool) {
-	//INFO 	 https://en.wikipedia.org/wiki/Digital_signature
-	//OPT1 	 https://pkg.go.dev/github.com/tyler-smith/go-bip32#section-readme
-	//OPT2 	 https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
-	//COSMOS crypto/hd doc https://pkg.go.dev/github.com/cosmos/cosmos-sdk/crypto/hd
-
-	//TODO: read from disc if exists. For this example we don't need to encrypt it
-
-	//COSMOS
-	// seed := bip39.NewSeed("blast about old claw current first paste risk involve victory edit current", "")
-	// master, ch := hd.ComputeMastersFromSeed(seed)
-	// path := "m/44'/1022'/0'/0/0'"
-	// priv, err := hd.DerivePrivateKeyForPath(master, ch, path)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// var privKey secp256r1.PrivKey
-	// var pubKey types.PubKey = privKey.PubKey()
-	// var addr sdk.AccAddress = sdk.AccAddress(pubKey.Address().Bytes())
-
-	// fmt.Println(privKey)
-	// fmt.Println(pubKey)
-	// fmt.Println(addr)
-
-	//OPT1
-	// Generate a seed to determine all keys from.
-	// This should be persisted, backed up, and secured
-	// seed, err := bip32.NewSeed()
-	// if err != nil {
-	// 	fmt.Println("bip32.NewSeed returned", err)
-	// 	os.Exit(1)
-	// }
-
-	// Create master private key from seed. Type *bip32.Key
-	// masterKey, err := bip32.NewMasterKey(seed)
-	// if err != nil {
-	// 	fmt.Println("bip32.NewMasterKey returned", err)
-	// 	os.Exit(1)
-	// }
-
-	// There is a very small chance a given child index is invalid
-	// If so your real program should handle this by skipping the index
-	// Type *bip32.Key
-	// privKey, err := masterKey.NewChildKey(0)
-	// if err != nil {
-	// 	fmt.Println("masterKey.NewChildKey returned", err)
-	// 	os.Exit(1)
-	// }
-
-	// pubKey := privKey.PublicKey()
-
-	// fmt.Println("seed", seed)
-	// fmt.Println("privKey", privKey)
-	// fmt.Println("pubKey", pubKey)
-	// fmt.Println("account", pubKey.account) account is a cosmos concept. DOC?
-
+//TODO: store on disk generated
+//TODO: Try to load from disk if exists
+func loadOrCreateAccounts(generated bool) {
 	//DOC
+	// https://en.wikipedia.org/wiki/Digital_signature
 	// https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
 	// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/keys/secp256k1
 	// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/hd
@@ -180,17 +132,13 @@ func createOrLoadAccounts(generated bool) {
 }
 
 func sendTransaction() {
-	// create/load accounts from disk if exists https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
-
-	// faucet to get coins
+	// faucet to get coins!!!
 
 	// connect to testnet
 
 	// send a transaction
-
-	// verify balance changed
 }
 
-func verifyBalbance() {
-
+func verifyBalance() {
+	// verify balance changed
 }
