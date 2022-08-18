@@ -57,4 +57,28 @@ More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html
 Info and examples on [cosmos doc](https://docs.cosmos.network/master/run-node/txs.html)
 Testnets & Faucets [cosmos doc](https://github.com/cosmos/testnets)
 
+### Load an account
+
+IMPORTANT: Never load this seeds into your wallets as this data is exposed publicly on github.com
+
+Accounts used in from/to files were generated using using this [website](https://iancoleman.io/bip39)
+
+* Mnemonic from `write sense wage direct salute north now dog divorce inflict pole provide spike welcome bring sister fetch upset chimney direct siren trash cruise mother` must generate `cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5` for path `m/44'/118'/0'/0/0`(ATOM)
+* Mnemonic to `sugar cereal decorate hip jelly choose milk cave rally liquid angry hat blood movie rare shadow skate drop giant insane argue shock mimic plate` must generate `cosmos1kc4zwgea50n6404untq05qsnlx9wayceknujcu` for path `m/44'/118'/0'/0/0`(ATOM)
+  
 ### Create an account
+
+Creating an acount:
+
+* Generate a mnemonic(using bip39 package)
+* Transform to a seed this mnemonic(using bip39)
+* Create to a masterkey from the seed(using hd package)
+* Derive the masterkey to an Atom private key with Account - 0 / External - 0(using hd package). Path: `"m/44'/118'/0'/0/0"`, more info on [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#change)
+* Generate Public Key and Address from Atom private key
+
+### Make a Transaction
+
+TODO
+
+
+//TODO: Change/Inject from command line parameters

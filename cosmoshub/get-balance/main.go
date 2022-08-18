@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
 	"os"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -17,24 +21,41 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type account struct {
+	privKey secp256k1.PrivKey
+	pubKey  types.PubKey
+	address sdk.AccAddress
+}
+
+func (a account) String() string {
+	return fmt.Sprintf("Private Key %s\n Public Key %s\n Address %s\n", a.privKey, a.privKey, a.address.String())
+}
+
 func main() {
 	// Read State in mainnet
-	queryProductionState()
+	queryMainnetState()
 
 	// Write state in testnet
-	loadOrCreateAccounts(false)
-	//TODO: go to a faucet to deposit coins in the addr1. Wait the program until user explicitly taps enter
-	sendTransaction()
-	verifyBalance()
+	newAccounts := true //TODO: Change/Inject from command line parameters
+	var from, to account
+	if newAccounts {
+		from, to = createAccounts()
+	} else {
+		from, to = loadAccounts("from.txt", "to.txt")
+	}
+	printAccounts(from, to)
+	waitForUserToTransferCoinsTo(from)
+	verifyBalance(to, "before")
+	sendTransaction(from, to)
+	verifyBalance(to, "after")
 }
 
 // full tutorial https://docs.cosmos.network/v0.46/run-node/interact-node.html
-func queryProductionState() {
+func queryMainnetState() {
 	// create an addr. doc https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types
 	sg1Addr, err := sdk.AccAddressFromBech32("cosmos196ax4vc0lwpxndu9dyhvca7jhxp70rmcfhxsrt")
 	if err != nil {
-		fmt.Println("Error", err)
-		os.Exit(1)
+		log.Fatalf("Error %s", err)
 	}
 	fmt.Println("using", sg1Addr.String())
 
@@ -46,8 +67,7 @@ func queryProductionState() {
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.NewProtoCodec(nil).GRPCCodec())),
 	)
 	if err != nil {
-		fmt.Println("Error", err)
-		os.Exit(1)
+		log.Fatalf("Error %s", err)
 	}
 	defer grpcConn.Close()
 	fmt.Println("open gRPC connection", grpcConn.Target())
@@ -58,87 +78,115 @@ func queryProductionState() {
 	// query uatom balance for an account
 	bankRes, err := bankClient.Balance(context.Background(), &banktypes.QueryBalanceRequest{Address: sg1Addr.String(), Denom: "uatom"})
 	if err != nil {
-		fmt.Println("Error", err)
-		os.Exit(1)
+		log.Fatalf("Error %s", err)
 	}
 	fmt.Println("atom balance", bankRes.String())
 
 	// query all balances for an account
 	bankAllRes, err := bankClient.AllBalances(context.Background(), &banktypes.QueryAllBalancesRequest{Address: sg1Addr.String()})
 	if err != nil {
-		fmt.Println("Error", err)
-		os.Exit(1)
+		log.Fatalf("Error %s", err)
 	}
 	fmt.Println("all balances", bankAllRes.String())
+	fmt.Println("-----------------------------------")
 }
 
-//TODO: store on disk generated
-//TODO: Try to load from disk if exists
-func loadOrCreateAccounts(generated bool) {
-	//DOC
-	// https://en.wikipedia.org/wiki/Digital_signature
-	// https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
-	// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/keys/secp256k1
-	// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/hd
-	//BIP39
-	// https://github.com/cosmos/go-bip39 (COSMOS FORK)
-	// https://iancoleman.io/bip39/#english
-	//BIP44
-	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose
+func printAccounts(from account, to account) {
+	fmt.Println("from", from)
+	fmt.Println("to", to)
+}
 
-	var seed string
-	if generated {
-		// Generate a mnemonic for memorization or user-friendly seeds
-		entropy, err := bip39.NewEntropy(256)
-		if err != nil {
-			fmt.Println("bip39.NewEntropy error", err)
-			os.Exit(1)
-		}
-		mnemonic, err := bip39.NewMnemonic(entropy)
-		if err != nil {
-			fmt.Println("bip39.NewMnemonic error", err)
-			os.Exit(1)
-		}
-		fmt.Println("mnemonic", mnemonic)
-		// Generate a Bip32 HD wallet for the mnemonic and a user supplied password
-		password := ""
-		seedBytes := bip39.NewSeed(mnemonic, password)
-		seed = string(seedBytes)
-		fmt.Println("BIP39 seed(validate in https://iancoleman.io/bip39)", seed) // validate the seed in https://iancoleman.io/bip39
-	} else {
-		// it MUST generate addr cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5 for path "m/44'/118'/0'/0/0"
-		mnemonic := "write sense wage direct salute north now dog divorce inflict pole provide spike welcome bring sister fetch upset chimney direct siren trash cruise mother" // generated using https://iancoleman.io/bip39
-		password := ""
-		seedBytes := bip39.NewSeed(mnemonic, password)
-		seed = string(seedBytes)
-		fmt.Println("BIP39 seed", hex.EncodeToString(seedBytes))
+// Load from disk if exists the files or creates new accounts
+//DOC
+// https://en.wikipedia.org/wiki/Digital_signature
+// https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
+// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/keys/secp256k1
+// https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/hd
+//BIP39
+// https://github.com/cosmos/go-bip39 (COSMOS FORK)
+// https://iancoleman.io/bip39/#english
+//BIP44
+// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose
+func loadAccounts(fromFile string, toFile string) (account, account) {
+	// Read from disk
+	fromBody, err := ioutil.ReadFile(fromFile)
+	if err != nil && err != io.EOF {
+		log.Fatalf("ioutil.ReadFile() %s %s", fromFile, err)
 	}
+	toBody, err := ioutil.ReadFile(toFile)
+	if err != nil && err != io.EOF {
+		log.Fatalf("ioutil.ReadFile() %s %s", toFile, err)
+	}
+	// Generate seed from mnemonic
+	toSeed := generateSeed(toBody)
+	fmt.Println("BIP39 seed 'to'", string(fromBody), hex.EncodeToString(toSeed))
+	fromSeed := generateSeed(fromBody)
+	fmt.Println("BIP39 seed 'from'", string(toBody), hex.EncodeToString(fromSeed))
+	// Derive Atom account from seed
+	fromAcc := deriveAtomAccountFromSeed(fromSeed)
+	toAcc := deriveAtomAccountFromSeed(toSeed)
 
+	return fromAcc, toAcc
+}
+
+func createAccounts() (account, account) {
+	return createAccount(), createAccount()
+}
+
+func createAccount() account {
+	// Generate a mnemonic for memorization or user-friendly seeds
+	entropy, err := bip39.NewEntropy(256)
+	if err != nil {
+		log.Fatalf("bip39.NewEntropy error %s", err)
+	}
+	mnemonic, err := bip39.NewMnemonic(entropy)
+	if err != nil {
+		log.Fatalf("bip39.NewMnemonic error %s", err)
+	}
+	fmt.Println("mnemonic", mnemonic)
+	// Generate seed from mnemonic
+	seed := generateSeed([]byte(mnemonic))
+	fmt.Println("BIP39 seed", hex.EncodeToString(seed))
+	// Derive Atom account from seed
+	newAccount := deriveAtomAccountFromSeed(seed)
+
+	return newAccount
+}
+
+func generateSeed(mnemonicBytes []byte) []byte {
+	mnemonic := string(mnemonicBytes)
+	password := ""
+	seedBytes := bip39.NewSeed(mnemonic, password)
+	return seedBytes
+}
+
+func deriveAtomAccountFromSeed(seed []byte) account {
 	// Derivation Path
 	master, ch := hd.ComputeMastersFromSeed([]byte(seed))
 	atomPath := "m/44'/118'/0'/0/0" // check BIP44 standard https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose or https://iancoleman.io/bip39/#english to get the path
 	atomPriv, err := hd.DerivePrivateKeyForPath(master, ch, atomPath)
 	if err != nil {
-		fmt.Println("hd.DerivePrivateKeyForPath error", err)
-		os.Exit(1)
+		log.Fatalf("hd.DerivePrivateKeyForPath error %s", err)
 	}
 	// Keys
 	var privKey secp256k1.PrivKey = secp256k1.PrivKey{Key: atomPriv}
 	var pubKey types.PubKey = privKey.PubKey()
 	var address sdk.AccAddress = sdk.AccAddress(pubKey.Address().Bytes())
-	fmt.Println("Private Key", privKey)
-	fmt.Println("Public Key", pubKey)
-	fmt.Println("Address", address.String())
+	return account{privKey: privKey, pubKey: pubKey, address: address}
 }
 
-func sendTransaction() {
-	// faucet to get coins!!!
+func waitForUserToTransferCoinsTo(from account) {
+	input := bufio.NewScanner(os.Stdin)
+	fmt.Printf("Waiting until %s has enough balance to make a transaction. Then tap enter to continue!", from.address.String())
+	input.Scan()
+}
 
+func sendTransaction(from account, to account) {
 	// connect to testnet
 
 	// send a transaction
 }
 
-func verifyBalance() {
+func verifyBalance(to account, tag string) {
 	// verify balance changed
 }
