@@ -186,7 +186,7 @@ func deriveAtomAccountFromSeed(seed []byte) account {
 
 func waitForUserToTransferCoinsTo(from account) {
 	input := bufio.NewScanner(os.Stdin)
-	fmt.Printf("Waiting until %s has enough balance to make a transaction. Then tap enter to continue!", from.address.String())
+	fmt.Printf("Waiting until %s has enough balance to make a transaction. Then tap enter to continue!\n", from.address.String())
 	input.Scan()
 }
 
@@ -254,24 +254,44 @@ func sendTransaction(from account, to account) {
 	}
 
 	// review transaction
-	bz, err := txConfig.TxEncoder()(txBuilder.GetTx())
+	txBytes, err := txConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {
 		log.Fatalf("txConfig.TxEncoder error %s", err)
 	}
-	fmt.Println("raw transaction", bz)
-	jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
-	if err != nil {
-		log.Fatalf("txConfig.TxJSONEncoder error %s", err)
-	}
-	fmt.Println("json transaction", jsonBytes)
+	fmt.Println("RAW transaction", string(txBytes))
+	//TODO: not works printing to json
+	// jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
+	// if err != nil {
+	// 	log.Fatalf("txConfig.TxJSONEncoder error %s", err)
+	// }
+	// txJSON := string(jsonBytes)
+	// fmt.Println("json transaction", txJSON)
 
-	// connect to testnet
+	// Connect to testnet
 	grpcUrl := "https://grpc.one.theta-devnet.polypore.xyz" // https://github.com/cosmos/testnets/blob/master/v7-theta/devnet/README.md
 	fmt.Println("testnet", grpcUrl)
-	//TODO:
+	grpcConn, err := grpc.Dial(
+		grpcUrl,
+		grpc.WithTransportCredentials(insecure.NewCredentials()), // The Cosmos SDK doesn't support any transport security mechanism.
+	)
+	if err != nil {
+		log.Fatalf("grpc.Dial Error %s", err)
+	}
+	defer grpcConn.Close()
 
-	// broadcast the transaction
-	//TODO:
+	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
+	txClient := tx.NewServiceClient(grpcConn)
+	grpcRes, err := txClient.BroadcastTx( // We then call the BroadcastTx method on this client.
+		ctx,
+		&tx.BroadcastTxRequest{
+			Mode:    tx.BroadcastMode_BROADCAST_MODE_SYNC,
+			TxBytes: txBytes, // Proto-binary of the signed transaction, see previous step.
+		},
+	)
+	if err != nil {
+		log.Fatalf("txClient.BroadcastTx Error %s", err)
+	}
+	fmt.Println("GRPCResponse TXResponse code", grpcRes.TxResponse.Code) // Should be `0` if the tx is successful
 }
 
 func verifyBalance(to account, tag string) {

@@ -95,7 +95,11 @@ Making a transaction:
 * Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
   * Populate the SignerInfo
   * Sign the SignDoc (the payload to be signed)
+* Generate transaction bytes
+* Create the grpc connection
+* Send the transaction bytes via grpc connection
 
 // TODO: Change/Inject from command line parameters
 // TODO: investigate how to get current network avg gas price
 // TODO: investigate fee
+// TODO: not works printing to json
