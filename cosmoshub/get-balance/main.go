@@ -280,12 +280,12 @@ func sendTransaction(from account, to account) {
 	defer grpcConn.Close()
 
 	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
-	txClient := tx.NewServiceClient(grpcConn)
-	grpcRes, err := txClient.BroadcastTx( // We then call the BroadcastTx method on this client.
-		ctx,
-		&tx.BroadcastTxRequest{
-			Mode:    tx.BroadcastMode_BROADCAST_MODE_SYNC,
-			TxBytes: txBytes, // Proto-binary of the signed transaction, see previous step.
+	txClient := tx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
+	grpcRes, err := txClient.BroadcastTx(     // We then call the BroadcastTx method on this client.
+		context.Background(),
+		&tx.BroadcastTxRequest{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastTxRequest
+			Mode:    tx.BroadcastMode_BROADCAST_MODE_SYNC, // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastMode
+			TxBytes: txBytes,                              // Proto-binary of the signed transaction, see previous step.
 		},
 	)
 	if err != nil {
