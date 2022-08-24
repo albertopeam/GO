@@ -176,8 +176,8 @@ func deriveAtomAccountFromSeed(seed []byte) account {
 	}
 
 	// Keys to create an account
-	secp256k1Algo := hd.Secp256k1
-	secp256k1GenerateFn := secp256k1Algo.Generate()
+	secp256k1Algo := hd.Secp256k1                   // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/crypto/hd#pkg-variables
+	secp256k1GenerateFn := secp256k1Algo.Generate() // https://github.com/cosmos/cosmos-sdk/blob/main/crypto/hd/algo.go
 	privKey := secp256k1GenerateFn(atomPriv)
 	var pubKey types.PubKey = privKey.PubKey()
 	var address sdk.AccAddress = sdk.AccAddress(pubKey.Address().Bytes())
@@ -258,11 +258,11 @@ func sendTransaction(from account, to account) {
 	if err != nil {
 		log.Fatalf("txConfig.TxEncoder error %s", err)
 	}
+	fmt.Println("raw transaction", bz)
 	jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
 	if err != nil {
 		log.Fatalf("txConfig.TxJSONEncoder error %s", err)
 	}
-	fmt.Println("raw transaction", bz)
 	fmt.Println("json transaction", jsonBytes)
 
 	// connect to testnet
