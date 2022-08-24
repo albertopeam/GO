@@ -2,7 +2,11 @@
 
 Gaia info on [github](https://github.com/cosmos/gaia)
 
+Golang cosmos [sdk](https://pkg.go.dev/github.com/cosmos/cosmos-sdk)
+
 Chain registry info on [github](https://github.com/cosmos/chain-registry)
+
+Tutorial on [cosmos](https://docs.cosmos.network/master/run-node/txs.html)
 
 ## How to make a connection
 
@@ -54,7 +58,7 @@ More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html
 
 ## How to sign a transaction?
 
-Info and examples on [cosmos doc](https://docs.cosmos.network/master/run-node/txs.html)
+Info and examples on [cosmos query blockchain](https://docs.cosmos.network/master/run-node/txs.html), [cosmos create transactions](https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md)
 Testnets & Faucets [cosmos doc](https://github.com/cosmos/testnets)
 
 ### Load an account
@@ -78,7 +82,20 @@ Creating an acount:
 
 ### Make a Transaction
 
-TODO
+Transaction lyfecicle [cosmos doc](https://docs.cosmos.network/master/basics/tx-lifecycle.html)
+Info on [cosmos sdk](https://docs.cosmos.network/master/core/transactions.html#transaction-generation)
 
+Making a transaction:
 
-//TODO: Change/Inject from command line parameters
+* Create txConfig using: codec & SIGN_MODE_DIRECT
+  * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
+  * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
+* Create txBuilder from txConfig
+* Set the message, Gas limit and other transaction parameters
+* Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
+  * Populate the SignerInfo
+  * Sign the SignDoc (the payload to be signed)
+
+// TODO: Change/Inject from command line parameters
+// TODO: investigate how to get current network avg gas price
+// TODO: investigate fee

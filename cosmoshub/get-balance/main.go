@@ -10,19 +10,25 @@ import (
 	"log"
 	"os"
 
+	"cosmossdk.io/math"
+	clienttx "github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/codec"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
-	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/tx/signing"
+	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
+	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/go-bip39"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// info on types https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/types
 type account struct {
-	privKey secp256k1.PrivKey
+	privKey types.PrivKey
 	pubKey  types.PubKey
 	address sdk.AccAddress
 }
@@ -36,7 +42,7 @@ func main() {
 	queryMainnetState()
 
 	// Write state in testnet
-	newAccounts := true //TODO: Change/Inject from command line parameters
+	newAccounts := false //TODO: Change/Inject from command line parameters
 	var from, to account
 	if newAccounts {
 		from, to = createAccounts()
@@ -168,8 +174,11 @@ func deriveAtomAccountFromSeed(seed []byte) account {
 	if err != nil {
 		log.Fatalf("hd.DerivePrivateKeyForPath error %s", err)
 	}
-	// Keys
-	var privKey secp256k1.PrivKey = secp256k1.PrivKey{Key: atomPriv}
+
+	// Keys to create an account
+	secp256k1Algo := hd.Secp256k1
+	secp256k1GenerateFn := secp256k1Algo.Generate()
+	privKey := secp256k1GenerateFn(atomPriv)
 	var pubKey types.PubKey = privKey.PubKey()
 	var address sdk.AccAddress = sdk.AccAddress(pubKey.Address().Bytes())
 	return account{privKey: privKey, pubKey: pubKey, address: address}
@@ -182,11 +191,89 @@ func waitForUserToTransferCoinsTo(from account) {
 }
 
 func sendTransaction(from account, to account) {
-	// connect to testnet
+	//create the transaction builder
+	signinModes := []signing.SignMode{signing.SignMode_SIGN_MODE_DIRECT} // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types/tx/signing#SignMode
+	registry := codectypes.NewInterfaceRegistry()                        // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec/types#NewInterfaceRegistry
+	codec := codec.NewProtoCodec(registry)                               // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodecMarshaler https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec
+	txConfig := tx.NewTxConfig(codec, signinModes)                       // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/tx#NewTxConfig
+	txBuilder := txConfig.NewTxBuilder()                                 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/client#TxConfig
 
-	// send a transaction
+	coin := sdk.NewCoin("atom", math.OneInt())                   // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoin
+	coins := sdk.NewCoins(coin)                                  // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoins
+	msg := banktypes.NewMsgSend(from.address, to.address, coins) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/bank/types#NewMsgSend
+	err := txBuilder.SetMsgs(msg)                                // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types#Msg
+	if err != nil {
+		log.Fatalf("txBuilder.SetMsgs error %s", err)
+	}
+	txBuilder.SetGasLimit(400_000)                                    // TODO: investigate how to get current network avg gas price
+	txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("atom", 1))) //TODO: investigate fee
+
+	// retrieve account number and sequence number. we know it as we have hardcoded the "atomPath". Otherwise we could request the account and obtain them
+	// https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction
+	var sequenceNumber uint64 = 0 // the sequence/index used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#index
+	var accountNumber uint64 = 0  // the number used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
+
+	// Sign in transaction
+	// main info https://docs.cosmos.network/master/run-node/txs.html
+	// accounts https://docs.cosmos.network/master/basics/accounts.html
+	// https://docs.cosmos.network/v0.46/modules/auth/02_state.html
+
+	// First round: we gather all the signer infos. We use the "set empty signature" hack to do that.
+	sigV2 := signing.SignatureV2{
+		PubKey: from.pubKey,
+		Data: &signing.SingleSignatureData{
+			SignMode:  txConfig.SignModeHandler().DefaultMode(),
+			Signature: nil,
+		},
+		Sequence: sequenceNumber,
+	}
+	err = txBuilder.SetSignatures(sigV2)
+	if err != nil {
+		log.Fatalf("txBuilder.SetSignatures Populate SignerInfo error %s", err)
+	}
+	// Second round: all signer infos are set, so each signer can sign.
+	chainID := "theta-devnet"              // https://github.com/cosmos/testnets/blob/master/v7-theta/devnet/README.md
+	signerData := xauthsigning.SignerData{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/signing
+		ChainID:       chainID,
+		AccountNumber: accountNumber,
+		Sequence:      sequenceNumber,
+	}
+	sigV2, err = clienttx.SignWithPrivKey( // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/client/tx#SignWithPrivKey
+		txConfig.SignModeHandler().DefaultMode(),
+		signerData,
+		txBuilder,
+		from.privKey,
+		txConfig,
+		sequenceNumber)
+	if err != nil {
+		log.Fatalf("tx.SignWithPrivKey Sign error %s", err)
+	}
+	err = txBuilder.SetSignatures(sigV2)
+	if err != nil {
+		log.Fatalf("txBuilder.SetSignatures error %s", err)
+	}
+
+	// review transaction
+	bz, err := txConfig.TxEncoder()(txBuilder.GetTx())
+	if err != nil {
+		log.Fatalf("txConfig.TxEncoder error %s", err)
+	}
+	jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
+	if err != nil {
+		log.Fatalf("txConfig.TxJSONEncoder error %s", err)
+	}
+	fmt.Println("raw transaction", bz)
+	fmt.Println("json transaction", jsonBytes)
+
+	// connect to testnet
+	grpcUrl := "https://grpc.one.theta-devnet.polypore.xyz" // https://github.com/cosmos/testnets/blob/master/v7-theta/devnet/README.md
+	fmt.Println("testnet", grpcUrl)
+	//TODO:
+
+	// broadcast the transaction
+	//TODO:
 }
 
 func verifyBalance(to account, tag string) {
-	// verify balance changed
+	// verify balance changed, broadcast?
 }
