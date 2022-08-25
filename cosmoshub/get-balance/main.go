@@ -17,6 +17,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	typestx "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
@@ -280,12 +281,12 @@ func sendTransaction(from account, to account) {
 	defer grpcConn.Close()
 
 	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
-	txClient := tx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
-	grpcRes, err := txClient.BroadcastTx(     // We then call the BroadcastTx method on this client.
+	txClient := typestx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
+	grpcRes, err := txClient.BroadcastTx(          // We then call the BroadcastTx method on this client.
 		context.Background(),
-		&tx.BroadcastTxRequest{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastTxRequest
-			Mode:    tx.BroadcastMode_BROADCAST_MODE_SYNC, // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastMode
-			TxBytes: txBytes,                              // Proto-binary of the signed transaction, see previous step.
+		&typestx.BroadcastTxRequest{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastTxRequest
+			Mode:    typestx.BroadcastMode_BROADCAST_MODE_SYNC, // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastMode
+			TxBytes: txBytes,                                   // Proto-binary of the signed transaction, see previous step.
 		},
 	)
 	if err != nil {
