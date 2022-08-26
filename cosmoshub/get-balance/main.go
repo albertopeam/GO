@@ -233,7 +233,7 @@ func sendTransaction(from account, to account) {
 		log.Fatalf("txBuilder.SetSignatures Populate SignerInfo error %s", err)
 	}
 	// Second round: all signer infos are set, so each signer can sign.
-	chainID := "theta-devnet"              // https://github.com/cosmos/testnets/blob/master/v7-theta/devnet/README.md
+	chainID := "theta-testnet-001"         // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
 	signerData := xauthsigning.SignerData{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/signing
 		ChainID:       chainID,
 		AccountNumber: accountNumber,
@@ -268,8 +268,8 @@ func sendTransaction(from account, to account) {
 	// txJSON := string(jsonBytes)
 	// fmt.Println("json transaction", txJSON)
 
-	// Connect to testnet
-	grpcUrl := "https://grpc.one.theta-devnet.polypore.xyz" // https://github.com/cosmos/testnets/blob/master/v7-theta/devnet/README.md
+	// Connect to testnet https://hub.cosmos.network/main/hub-tutorials/join-testnet.html
+	grpcUrl := "rpc.sentry-01.theta-testnet.polypore.xyz:9090" // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
 	fmt.Println("testnet", grpcUrl)
 	grpcConn, err := grpc.Dial(
 		grpcUrl,
@@ -292,7 +292,7 @@ func sendTransaction(from account, to account) {
 	if err != nil {
 		log.Fatalf("txClient.BroadcastTx Error %s", err)
 	}
-	fmt.Println("GRPCResponse TXResponse code", grpcRes.TxResponse.Code) // Should be `0` if the tx is successful
+	fmt.Println("GRPCResponse TXResponse code", grpcRes.TxResponse.Code) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 }
 
 func verifyBalance(to account, tag string) {

@@ -98,6 +98,7 @@ Making a transaction:
 * Generate transaction bytes
 * Create the grpc connection
 * Send the transaction bytes via grpc connection
+* Wait for the result and check the destination address in a [bigdipper explorer](https://testnet.cosmos.bigdipper.live/) or [cosmostation explorer](https://cosmoshub-testnet.mintscan.io/cosmoshub-testnet)
 
 // TODO: Change/Inject from command line parameters
 // TODO: investigate how to get current network avg gas price
