@@ -52,9 +52,7 @@ func main() {
 	}
 	printAccounts(from, to)
 	waitForUserToTransferCoinsTo(from)
-	verifyBalance(to, "before")
 	sendTransaction(from, to)
-	verifyBalance(to, "after")
 }
 
 // full tutorial https://docs.cosmos.network/v0.46/run-node/interact-node.html
@@ -170,7 +168,8 @@ func generateSeed(mnemonicBytes []byte) []byte {
 func deriveAtomAccountFromSeed(seed []byte) account {
 	// Derivation Path
 	master, ch := hd.ComputeMastersFromSeed([]byte(seed))
-	atomPath := "m/44'/118'/0'/0/0" // check BIP44 standard https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose or https://iancoleman.io/bip39/#english to get the path
+	// path: check BIP44 standard https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose or https://iancoleman.io/bip39/#english to get the path
+	atomPath := "m/44'/118'/0'/0/0" // we could use "sdk.FullFundraiserPath" instead. https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types#pkg-constants
 	atomPriv, err := hd.DerivePrivateKeyForPath(master, ch, atomPath)
 	if err != nil {
 		log.Fatalf("hd.DerivePrivateKeyForPath error %s", err)
@@ -199,15 +198,15 @@ func sendTransaction(from account, to account) {
 	txConfig := tx.NewTxConfig(codec, signinModes)                       // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/tx#NewTxConfig
 	txBuilder := txConfig.NewTxBuilder()                                 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/client#TxConfig
 
-	coin := sdk.NewCoin("atom", math.OneInt())                   // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoin
+	coin := sdk.NewCoin("uatom", math.NewInt(10000))             // 0.01 ATOM https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoin
 	coins := sdk.NewCoins(coin)                                  // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoins
 	msg := banktypes.NewMsgSend(from.address, to.address, coins) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/bank/types#NewMsgSend
 	err := txBuilder.SetMsgs(msg)                                // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types#Msg
 	if err != nil {
 		log.Fatalf("txBuilder.SetMsgs error %s", err)
 	}
-	txBuilder.SetGasLimit(400_000)                                    // TODO: investigate how to get current network avg gas price
-	txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("atom", 1))) //TODO: investigate fee
+	txBuilder.SetGasLimit(400_000) // TODO: investigate how to get current network avg gas price
+	//txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("atom", 1))) //TODO: investigate fee
 
 	// retrieve account number and sequence number. we know it as we have hardcoded the "atomPath". Otherwise we could request the account and obtain them
 	// https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction
@@ -280,6 +279,8 @@ func sendTransaction(from account, to account) {
 	}
 	defer grpcConn.Close()
 
+	verifyBalance(from.address, "from", grpcConn)
+
 	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
 	txClient := typestx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
 	grpcRes, err := txClient.BroadcastTx(          // We then call the BroadcastTx method on this client.
@@ -292,9 +293,42 @@ func sendTransaction(from account, to account) {
 	if err != nil {
 		log.Fatalf("txClient.BroadcastTx Error %s", err)
 	}
-	fmt.Println("GRPCResponse TXResponse code", grpcRes.TxResponse.Code) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
+	fmt.Println("GRPCResponse TXResponse", grpcRes.TxResponse) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
+
+	verifyBalance(from.address, "from", grpcConn)
+	// TODO: Document this process in readme in the faucet entry
+	// https://cosmoshub-testnet.mintscan.io/cosmoshub-testnet/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5
+	// Discord faucet https://discord.com/channels/669268347736686612/953697793476821092
+	// $request cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5 theta
+	// response:
+	//  https://explorer.theta-testnet.polypore.xyz/transactions/5B53860E09ABF6FF1D0352D4BA571212448B8B37A553FA1675A7FF278315BD10
+	// 	https://explorer.theta-testnet.polypore.xyz/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5
+
+	// List of available commands on discord:
+	// 1. Request tokens through the faucet:
+	// $request [cosmos address] theta|devnet
+
+	// 2. Request the faucet and node status:
+	// $faucet_status theta|devnet
+
+	// 3. Request the faucet address:
+	// $faucet_address theta|devnet
+
+	// 4. Request information for a specific transaction:
+	// $tx_info [transaction hash ID] theta|devnet
+
+	// 5. Request the address balance:
+	// $balance [cosmos address] theta|devnet
 }
 
-func verifyBalance(to account, tag string) {
-	// verify balance changed, broadcast?
+func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
+	// This creates a gRPC client to query the x/bank service.
+	bankClient := banktypes.NewQueryClient(grpcConn)
+
+	// query uatom balance for an account
+	bankRes, err := bankClient.Balance(context.Background(), &banktypes.QueryBalanceRequest{Address: account.String(), Denom: "uatom"})
+	if err != nil {
+		log.Fatalf("Error %s", err)
+	}
+	fmt.Println("atom balance", account.String(), bankRes.String())
 }

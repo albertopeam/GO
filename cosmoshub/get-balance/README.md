@@ -104,3 +104,4 @@ Making a transaction:
 // TODO: investigate how to get current network avg gas price
 // TODO: investigate fee
 // TODO: not works printing to json
+//TODO: restore code
