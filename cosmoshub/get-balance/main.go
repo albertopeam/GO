@@ -21,6 +21,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	xauthsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
+	accounts "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/go-bip39"
 	"google.golang.org/grpc"
@@ -40,7 +41,8 @@ func (a account) String() string {
 
 func main() {
 	// Read State in mainnet
-	queryMainnetState()
+	//TODO: restore code
+	//queryMainnetState()
 
 	// Write state in testnet
 	newAccounts := false //TODO: Change/Inject from command line parameters
@@ -206,12 +208,12 @@ func sendTransaction(from account, to account) {
 		log.Fatalf("txBuilder.SetMsgs error %s", err)
 	}
 	txBuilder.SetGasLimit(400_000) // TODO: investigate how to get current network avg gas price
-	//txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("atom", 1))) //TODO: investigate fee
+	//txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("uatom", 10000))) //TODO: investigate fee
 
 	// retrieve account number and sequence number. we know it as we have hardcoded the "atomPath". Otherwise we could request the account and obtain them
 	// https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction
-	var sequenceNumber uint64 = 0 // the sequence/index used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#index
-	var accountNumber uint64 = 0  // the number used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
+	var sequenceNumber uint64 = 0     // the sequence/index used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#index
+	var accountNumber uint64 = 702182 // the number used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
 
 	// Sign in transaction
 	// main info https://docs.cosmos.network/master/run-node/txs.html
@@ -322,13 +324,32 @@ func sendTransaction(from account, to account) {
 }
 
 func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
+	// query account https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#QueryClient
+	accountRequest := accounts.QueryAccountRequest{Address: account.String()}
+	accountClient := accounts.NewQueryClient(grpcConn)
+	accRes, err := accountClient.Account(context.Background(), &accountRequest)
+	// Unpack any
+	// https://docs.cosmos.network/v0.46/core/encoding.html#interface-encoding-and-usage-of-any
+	// https://pkg.golang.ir/github.com/cosmos/cosmos-sdk/x/auth/types#QueryAccountResponse.UnpackInterfaces
+	// AccountI https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#AccountI
+	// acount is an /cosmos.auth.v1beta1.BaseAccount
+	if err != nil {
+		fmt.Println("accountClient.Account error", err)
+	}
+	fmt.Println(accRes.Account.TypeUrl)
+	// https://docs.cosmos.network/v0.46/core/encoding.html
+	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry()) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#NewProtoCodec
+	var acc accounts.BaseAccount
+	cdc.Unmarshal(accRes.Account.Value, &acc) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#ProtoCodec.Unmarshal
+	fmt.Println("Account", acc)
+
 	// This creates a gRPC client to query the x/bank service.
 	bankClient := banktypes.NewQueryClient(grpcConn)
 
 	// query uatom balance for an account
 	bankRes, err := bankClient.Balance(context.Background(), &banktypes.QueryBalanceRequest{Address: account.String(), Denom: "uatom"})
 	if err != nil {
-		log.Fatalf("Error %s", err)
+		fmt.Println("bankClient.Balance Error", err)
 	}
 	fmt.Println("atom balance", account.String(), bankRes.String())
 }
