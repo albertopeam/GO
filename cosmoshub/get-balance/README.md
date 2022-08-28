@@ -87,6 +87,9 @@ Info on [cosmos sdk](https://docs.cosmos.network/master/core/transactions.html#t
 
 Making a transaction:
 
+* Before start fund your address with some atom(testnet atom has no real value). Go to [discord](https://discord.com/channels/669268347736686612/953697793476821092) and request some atom to the faucet channel bot
+  * Command: `$request [cosmos-address] theta`
+  * Review [blockchain](https://explorer.theta-testnet.polypore.xyz/account/) to check funded wallet
 * Create txConfig using: codec & SIGN_MODE_DIRECT
   * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
   * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
@@ -106,3 +109,4 @@ Making a transaction:
 // TODO: investigate fee
 // TODO: not works printing to json
 //TODO: restore code
+//TODO: move account/sequence number get submit transaction

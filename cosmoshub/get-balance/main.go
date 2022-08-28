@@ -214,6 +214,7 @@ func sendTransaction(from account, to account) {
 	// https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction
 	var sequenceNumber uint64 = 0     // the sequence/index used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#index
 	var accountNumber uint64 = 702182 // the number used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
+	//TODO: move account/sequence number get submit transaction
 
 	// Sign in transaction
 	// main info https://docs.cosmos.network/master/run-node/txs.html
@@ -298,29 +299,6 @@ func sendTransaction(from account, to account) {
 	fmt.Println("GRPCResponse TXResponse", grpcRes.TxResponse) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 
 	verifyBalance(from.address, "from", grpcConn)
-	// TODO: Document this process in readme in the faucet entry
-	// https://cosmoshub-testnet.mintscan.io/cosmoshub-testnet/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5
-	// Discord faucet https://discord.com/channels/669268347736686612/953697793476821092
-	// $request cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5 theta
-	// response:
-	//  https://explorer.theta-testnet.polypore.xyz/transactions/5B53860E09ABF6FF1D0352D4BA571212448B8B37A553FA1675A7FF278315BD10
-	// 	https://explorer.theta-testnet.polypore.xyz/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5
-
-	// List of available commands on discord:
-	// 1. Request tokens through the faucet:
-	// $request [cosmos address] theta|devnet
-
-	// 2. Request the faucet and node status:
-	// $faucet_status theta|devnet
-
-	// 3. Request the faucet address:
-	// $faucet_address theta|devnet
-
-	// 4. Request information for a specific transaction:
-	// $tx_info [transaction hash ID] theta|devnet
-
-	// 5. Request the address balance:
-	// $balance [cosmos address] theta|devnet
 }
 
 func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
@@ -336,7 +314,7 @@ func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
 	if err != nil {
 		fmt.Println("accountClient.Account error", err)
 	}
-	fmt.Println(accRes.Account.TypeUrl)
+	fmt.Println(accRes.Account.TypeUrl) // Type of the returned proto
 	// https://docs.cosmos.network/v0.46/core/encoding.html
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry()) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#NewProtoCodec
 	var acc accounts.BaseAccount
