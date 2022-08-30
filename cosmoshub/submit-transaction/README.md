@@ -40,6 +40,11 @@ Example in the `main.go` file. Download dependencies: `go mod tidy`. Run: `go ru
 
 More info on [doc](https://docs.cosmos.network/v0.46/run-node/interact-node.html#programmatically-via-go)
 
+Update depencencies:
+
+* `go get -u`
+* `go mod tidy`
+
 ### CosmJS
 
 Not included.
