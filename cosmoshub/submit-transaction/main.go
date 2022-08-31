@@ -193,6 +193,15 @@ func waitForUserToTransferCoinsTo(from account) {
 }
 
 func sendTransaction(from account, to account) {
+	// retrieve account number and sequence number.
+	grpcConn := createGrpcConn()
+	defer grpcConn.Close()
+	var account = getAccount(grpcConn, from.address)
+	fmt.Println("AccountNumber", account.GetAccountNumber())
+	fmt.Println("AccountSequence", account.GetSequence())
+	var sequenceNumber uint64 = account.GetSequence()
+	var accountNumber uint64 = account.GetAccountNumber()
+
 	//create the transaction builder
 	signinModes := []signing.SignMode{signing.SignMode_SIGN_MODE_DIRECT} // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types/tx/signing#SignMode
 	registry := codectypes.NewInterfaceRegistry()                        // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec/types#NewInterfaceRegistry
@@ -207,14 +216,9 @@ func sendTransaction(from account, to account) {
 	if err != nil {
 		log.Fatalf("txBuilder.SetMsgs error %s", err)
 	}
+	//TODO: seems to much gas?
 	txBuilder.SetGasLimit(400_000) // TODO: investigate how to get current network avg gas price
 	//txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("uatom", 10000))) //TODO: investigate fee
-
-	// retrieve account number and sequence number. we know it as we have hardcoded the "atomPath". Otherwise we could request the account and obtain them
-	// https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction
-	var sequenceNumber uint64 = 0     // the sequence/index used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#index
-	var accountNumber uint64 = 702182 // the number used when generating the derivation path for the account https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
-	//TODO: move account/sequence number get submit transaction
 
 	// Sign in transaction
 	// main info https://docs.cosmos.network/master/run-node/txs.html
@@ -270,18 +274,6 @@ func sendTransaction(from account, to account) {
 	// txJSON := string(jsonBytes)
 	// fmt.Println("json transaction", txJSON)
 
-	// Connect to testnet https://hub.cosmos.network/main/hub-tutorials/join-testnet.html
-	grpcUrl := "rpc.sentry-01.theta-testnet.polypore.xyz:9090" // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
-	fmt.Println("testnet", grpcUrl)
-	grpcConn, err := grpc.Dial(
-		grpcUrl,
-		grpc.WithTransportCredentials(insecure.NewCredentials()), // The Cosmos SDK doesn't support any transport security mechanism.
-	)
-	if err != nil {
-		log.Fatalf("grpc.Dial Error %s", err)
-	}
-	defer grpcConn.Close()
-
 	verifyBalance(from.address, "from", grpcConn)
 
 	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
@@ -301,26 +293,50 @@ func sendTransaction(from account, to account) {
 	verifyBalance(from.address, "from", grpcConn)
 }
 
-func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
-	// query account https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#QueryClient
-	accountRequest := accounts.QueryAccountRequest{Address: account.String()}
-	accountClient := accounts.NewQueryClient(grpcConn)
-	accRes, err := accountClient.Account(context.Background(), &accountRequest)
-	// Unpack any
-	// https://docs.cosmos.network/v0.46/core/encoding.html#interface-encoding-and-usage-of-any
-	// https://pkg.golang.ir/github.com/cosmos/cosmos-sdk/x/auth/types#QueryAccountResponse.UnpackInterfaces
-	// AccountI https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#AccountI
-	// acount is an /cosmos.auth.v1beta1.BaseAccount
+func createGrpcConn() *grpc.ClientConn {
+	// Connect to testnet https://hub.cosmos.network/main/hub-tutorials/join-testnet.html
+	grpcUrl := "rpc.sentry-01.theta-testnet.polypore.xyz:9090" // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
+	grpcConn, err := grpc.Dial(
+		grpcUrl,
+		grpc.WithTransportCredentials(insecure.NewCredentials()), // The Cosmos SDK doesn't support any transport security mechanism.
+	)
 	if err != nil {
-		fmt.Println("accountClient.Account error", err)
+		log.Fatalf("grpc.Dial Error %s", err)
 	}
-	fmt.Println(accRes.Account.TypeUrl) // Type of the returned proto
+	fmt.Println("Testnet URL", grpcUrl)
+	return grpcConn
+}
+
+func getAccount(grpcConn *grpc.ClientConn, address sdk.Address) accounts.BaseAccount {
+	// query account https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#QueryClient
+	accountRequest := accounts.QueryAccountRequest{Address: "cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5"}
+	accountClient := accounts.NewQueryClient(grpcConn)
+	fmt.Println(accountRequest, accountClient)
+	accRes, err := accountClient.Account(context.Background(), &accountRequest)
+	if err != nil {
+		log.Fatalf("accountClient.Account %s", err)
+	}
+	fmt.Println("Response.AccountType", accRes.Account.TypeUrl) // Type of the returned proto inside Account Any: /cosmos.auth.v1beta1.BaseAccount
+	// Unpack any from protobuff explanation
+	// https://docs.cosmos.network/v0.46/core/encoding.html#interface-encoding-and-usage-of-any
+	// https://docs.cosmos.network/master/architecture/adr-019-protobuf-state-encoding.html
+	// https://pkg.golang.ir/github.com/cosmos/cosmos-sdk/x/auth/types#QueryAccountResponse.UnpackInterfaces
 	// https://docs.cosmos.network/v0.46/core/encoding.html
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry()) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#NewProtoCodec
-	var acc accounts.BaseAccount
-	cdc.Unmarshal(accRes.Account.Value, &acc) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#ProtoCodec.Unmarshal
-	fmt.Println("Account", acc)
+	var acc accounts.BaseAccount                                  // returned concrete type inside Response.Account
+	cdc.Unmarshal(accRes.Account.Value, &acc)                     // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#ProtoCodec.Unmarshal
+	return acc
+}
 
+func createTransaction() {
+
+}
+
+func broacastTransaction() {
+
+}
+
+func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
 	// This creates a gRPC client to query the x/bank service.
 	bankClient := banktypes.NewQueryClient(grpcConn)
 

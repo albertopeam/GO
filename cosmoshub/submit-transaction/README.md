@@ -87,27 +87,35 @@ Creating an acount:
 
 ### Make a Transaction
 
-Transaction lyfecicle [cosmos doc](https://docs.cosmos.network/master/basics/tx-lifecycle.html)
-Info on [cosmos sdk](https://docs.cosmos.network/master/core/transactions.html#transaction-generation)
+Transaction lifecycle [cosmos doc](https://docs.cosmos.network/master/basics/tx-lifecycle.html)
+Genrate a transaction [cosmos doc](https://docs.cosmos.network/master/core/transactions.html#transaction-generation)
+Signing a transaction [cosmos sdk](https://github.com/cosmos/cosmos-sdk/blob/main/docs/run-node/txs.md#signing-a-transaction)
 
 Making a transaction:
 
-* Before start fund your address with some atom(testnet atom has no real value). Go to [discord](https://discord.com/channels/669268347736686612/953697793476821092) and request some atom to the faucet channel bot
+* Before start its needed to fund your address with some atom(testnet atom has no real value). Go to [discord](https://discord.com/channels/669268347736686612/953697793476821092) and request some atom to the faucet channel bot
   * Command: `$request [cosmos-address] theta`
-  * Review [blockchain](https://explorer.theta-testnet.polypore.xyz/account/) to check funded wallet
-* Create txConfig using: codec & SIGN_MODE_DIRECT
-  * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
-  * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
-* Create txBuilder from txConfig
-* Set the message, Gas limit and other transaction parameters
-* Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
-  * Populate the SignerInfo
-  * Sign the SignDoc (the payload to be signed)
-* Generate transaction bytes
-* Create the grpc connection
-* Send the transaction bytes via grpc connection
-* Wait for the result and check the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
-  * If running the code from [hardoced seeds](https://explorer.theta-testnet.polypore.xyz/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5)
+  * Review received atom on the expected adddress in the [tesnet explorer](https://explorer.theta-testnet.polypore.xyz/account/) to check funded wallet
+* Create the transaction:
+  * Create a GRPC connection to get accountNumber and sequence
+    * Using the GRPC connection query Account
+    * Unpack response
+    * Get accountNumber and sequence
+      * accountNumber: TODO: ?
+      * sequence: the index expected for the next transaction. Used to replay protection
+  * Create txConfig using: codec & SIGN_MODE_DIRECT
+    * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
+    * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
+  * Create txBuilder from txConfig
+  * Set the message, Gas limit and other transaction parameters
+  * Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
+    * Populate the SignerInfo
+    * Sign the SignDoc (the payload to be signed)
+  * Generate transaction bytes
+  * Create the grpc connection
+  * Send the transaction bytes via grpc connection
+  * Wait for the result and check the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
+    * If running the code from [hardoced seeds](https://explorer.theta-testnet.polypore.xyz/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5)
 
 // TODO: Change/Inject from command line parameters
 // TODO: investigate how to get current network avg gas price
@@ -115,3 +123,7 @@ Making a transaction:
 // TODO: not works printing to json
 //TODO: restore code
 //TODO: move account/sequence number get submit transaction
+//TODO: wait/listen tx success. NOT only GRPC result == 0
+
+
+review this doc: https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
