@@ -97,25 +97,27 @@ Making a transaction:
   * Command: `$request [cosmos-address] theta`
   * Review received atom on the expected adddress in the [tesnet explorer](https://explorer.theta-testnet.polypore.xyz/account/) to check funded wallet
 * Create the transaction:
-  * Create a GRPC connection to get accountNumber and sequence
-    * Using the GRPC connection query Account
+  * Create a GRPC connection that we will use in some of the next steps.
+  * Get accountNumber and sequence querying the x/auth module
+    * Using the GRPC connection query Account for an address
     * Unpack response
-    * Get accountNumber and sequence
-      * accountNumber: TODO: ?
-      * sequence: the index expected for the next transaction. Used to replay protection
-  * Create txConfig using: codec & SIGN_MODE_DIRECT
-    * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
-    * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
-  * Create txBuilder from txConfig
-  * Set the message, Gas limit and other transaction parameters
-  * Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
-    * Populate the SignerInfo
-    * Sign the SignDoc (the payload to be signed)
-  * Generate transaction bytes
-  * Create the grpc connection
-  * Send the transaction bytes via grpc connection
-  * Wait for the result and check the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
-    * If running the code from [hardoced seeds](https://explorer.theta-testnet.polypore.xyz/account/cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5)
+    * Get accountNumber and sequence. [more info](https://docs.like.co/developer/likecoin-chain-api/cosmos-concepts)
+      * accountNumber: account number
+      * sequence: Sequence is the number of transactions the account has sent. Used to replay protection
+  * Create the transaction:
+    * Create txBuilder using txConfig
+      * Create txConfig using: codec & SIGN_MODE_DIRECT
+        * [NewProtoCodec](https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec)
+        * [SIGN_MODE_DIRECT / Protobuf](https://docs.cosmos.network/master/core/transactions.html#sign-mode-direct-preferred)
+    * Set the amount of Atom to send in the txBuilder
+    * Set the message, Gas limit and other transaction parameters
+    * Sign the transaction(The API requires us to first perform a round of SetSignatures() with empty signatures, only to populate SignerInfos, and a second round of SetSignatures() to actually sign the correct payload):
+      * Populate the SignerInfo
+      * Sign the SignDoc (the payload to be signed)
+    * Generate transaction bytes
+  * Broadcast the transaction bytes via grpc connection
+  * Listen for the transaction result
+  * Verify the balance in the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
 
 // TODO: Change/Inject from command line parameters
 // TODO: investigate how to get current network avg gas price
@@ -124,6 +126,6 @@ Making a transaction:
 //TODO: restore code
 //TODO: move account/sequence number get submit transaction
 //TODO: wait/listen tx success. NOT only GRPC result == 0
-
+// TODO: investigate gasMeter
 
 review this doc: https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english

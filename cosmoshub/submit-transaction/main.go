@@ -193,104 +193,24 @@ func waitForUserToTransferCoinsTo(from account) {
 }
 
 func sendTransaction(from account, to account) {
-	// retrieve account number and sequence number.
+	// create grpc connection
 	grpcConn := createGrpcConn()
 	defer grpcConn.Close()
+
+	// retrieve account number and sequence number.
 	var account = getAccount(grpcConn, from.address)
-	fmt.Println("AccountNumber", account.GetAccountNumber())
-	fmt.Println("AccountSequence", account.GetSequence())
-	var sequenceNumber uint64 = account.GetSequence()
-	var accountNumber uint64 = account.GetAccountNumber()
 
-	//create the transaction builder
-	signinModes := []signing.SignMode{signing.SignMode_SIGN_MODE_DIRECT} // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types/tx/signing#SignMode
-	registry := codectypes.NewInterfaceRegistry()                        // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec/types#NewInterfaceRegistry
-	codec := codec.NewProtoCodec(registry)                               // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodecMarshaler https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec
-	txConfig := tx.NewTxConfig(codec, signinModes)                       // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/tx#NewTxConfig
-	txBuilder := txConfig.NewTxBuilder()                                 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/client#TxConfig
+	// create the transaction
+	txBytes := createTransaction(from, to, account.GetAccountNumber(), account.GetSequence())
 
-	coin := sdk.NewCoin("uatom", math.NewInt(10000))             // 0.01 ATOM https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoin
-	coins := sdk.NewCoins(coin)                                  // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoins
-	msg := banktypes.NewMsgSend(from.address, to.address, coins) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/bank/types#NewMsgSend
-	err := txBuilder.SetMsgs(msg)                                // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types#Msg
-	if err != nil {
-		log.Fatalf("txBuilder.SetMsgs error %s", err)
-	}
-	//TODO: seems to much gas?
-	txBuilder.SetGasLimit(400_000) // TODO: investigate how to get current network avg gas price
-	//txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewInt64Coin("uatom", 10000))) //TODO: investigate fee
+	// broadcast transaction
+	broadcastTransaction(grpcConn, txBytes)
 
-	// Sign in transaction
-	// main info https://docs.cosmos.network/master/run-node/txs.html
-	// accounts https://docs.cosmos.network/master/basics/accounts.html
-	// https://docs.cosmos.network/v0.46/modules/auth/02_state.html
+	// wait for transaction
+	waitForTransaction()
 
-	// First round: we gather all the signer infos. We use the "set empty signature" hack to do that.
-	sigV2 := signing.SignatureV2{
-		PubKey: from.pubKey,
-		Data: &signing.SingleSignatureData{
-			SignMode:  txConfig.SignModeHandler().DefaultMode(),
-			Signature: nil,
-		},
-		Sequence: sequenceNumber,
-	}
-	err = txBuilder.SetSignatures(sigV2)
-	if err != nil {
-		log.Fatalf("txBuilder.SetSignatures Populate SignerInfo error %s", err)
-	}
-	// Second round: all signer infos are set, so each signer can sign.
-	chainID := "theta-testnet-001"         // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
-	signerData := xauthsigning.SignerData{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/signing
-		ChainID:       chainID,
-		AccountNumber: accountNumber,
-		Sequence:      sequenceNumber,
-	}
-	sigV2, err = clienttx.SignWithPrivKey( // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/client/tx#SignWithPrivKey
-		txConfig.SignModeHandler().DefaultMode(),
-		signerData,
-		txBuilder,
-		from.privKey,
-		txConfig,
-		sequenceNumber)
-	if err != nil {
-		log.Fatalf("tx.SignWithPrivKey Sign error %s", err)
-	}
-	err = txBuilder.SetSignatures(sigV2)
-	if err != nil {
-		log.Fatalf("txBuilder.SetSignatures error %s", err)
-	}
-
-	// review transaction
-	txBytes, err := txConfig.TxEncoder()(txBuilder.GetTx())
-	if err != nil {
-		log.Fatalf("txConfig.TxEncoder error %s", err)
-	}
-	fmt.Println("RAW transaction", string(txBytes))
-	//TODO: not works printing to json
-	// jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
-	// if err != nil {
-	// 	log.Fatalf("txConfig.TxJSONEncoder error %s", err)
-	// }
-	// txJSON := string(jsonBytes)
-	// fmt.Println("json transaction", txJSON)
-
-	verifyBalance(from.address, "from", grpcConn)
-
-	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
-	txClient := typestx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
-	grpcRes, err := txClient.BroadcastTx(          // We then call the BroadcastTx method on this client.
-		context.Background(),
-		&typestx.BroadcastTxRequest{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastTxRequest
-			Mode:    typestx.BroadcastMode_BROADCAST_MODE_SYNC, // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastMode
-			TxBytes: txBytes,                                   // Proto-binary of the signed transaction, see previous step.
-		},
-	)
-	if err != nil {
-		log.Fatalf("txClient.BroadcastTx Error %s", err)
-	}
-	fmt.Println("GRPCResponse TXResponse", grpcRes.TxResponse) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
-
-	verifyBalance(from.address, "from", grpcConn)
+	// verify balance
+	verifyBalance(grpcConn, from.address, "from")
 }
 
 func createGrpcConn() *grpc.ClientConn {
@@ -325,18 +245,117 @@ func getAccount(grpcConn *grpc.ClientConn, address sdk.Address) accounts.BaseAcc
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry()) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#NewProtoCodec
 	var acc accounts.BaseAccount                                  // returned concrete type inside Response.Account
 	cdc.Unmarshal(accRes.Account.Value, &acc)                     // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/codec#ProtoCodec.Unmarshal
+	fmt.Println("AccountNumber", acc.GetAccountNumber())
+	fmt.Println("AccountSequence", acc.GetSequence())
 	return acc
 }
 
-func createTransaction() {
+func createTransaction(from account, to account, accountNumber uint64, sequence uint64) []byte {
+	//create the transaction builder
+	signinModes := []signing.SignMode{signing.SignMode_SIGN_MODE_DIRECT} // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types/tx/signing#SignMode
+	registry := codectypes.NewInterfaceRegistry()                        // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec/types#NewInterfaceRegistry
+	codec := codec.NewProtoCodec(registry)                               // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodecMarshaler https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/codec#ProtoCodec
+	txConfig := tx.NewTxConfig(codec, signinModes)                       // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/tx#NewTxConfig
+	txBuilder := txConfig.NewTxBuilder()                                 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/client#TxConfig
+
+	// sets amount to send in the txBuilder
+	coin := sdk.NewCoin("uatom", math.NewInt(10000))             // 0.01 ATOM https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoin
+	coins := sdk.NewCoins(coin)                                  // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/types#NewCoins
+	msg := banktypes.NewMsgSend(from.address, to.address, coins) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/bank/types#NewMsgSend
+	err := txBuilder.SetMsgs(msg)                                // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types#Msg
+	if err != nil {
+		log.Fatalf("txBuilder.SetMsgs error %s", err)
+	}
+
+	// TODO: investigate gasMeter
+	// https://docs.cosmos.network/master/basics/gas-fees.html
+
+	// setup limits https://docs.cosmos.network/v0.44/core/transactions.html#transaction-generation
+	txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewCoin("uatom", math.NewInt(1000)))) // the maximum amount the user is willing to pay in fees.
+	txBuilder.SetGasLimit(200_000)                                                // max units of gas
+
+	// Sign in transaction
+	// main info https://docs.cosmos.network/master/run-node/txs.html
+	// accounts https://docs.cosmos.network/master/basics/accounts.html
+	// https://docs.cosmos.network/v0.46/modules/auth/02_state.html
+
+	// First round: we gather all the signer infos. We use the "set empty signature" hack to do that.
+	sigV2 := signing.SignatureV2{
+		PubKey: from.pubKey,
+		Data: &signing.SingleSignatureData{
+			SignMode:  txConfig.SignModeHandler().DefaultMode(),
+			Signature: nil,
+		},
+		Sequence: sequence,
+	}
+	err = txBuilder.SetSignatures(sigV2)
+	if err != nil {
+		log.Fatalf("txBuilder.SetSignatures Populate SignerInfo error %s", err)
+	}
+	// Second round: all signer infos are set, so each signer can sign.
+	chainID := "theta-testnet-001"         // https://github.com/cosmos/testnets/tree/master/v7-theta/public-testnet
+	signerData := xauthsigning.SignerData{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/signing
+		ChainID:       chainID,
+		AccountNumber: accountNumber,
+		Sequence:      sequence,
+	}
+	sigV2, err = clienttx.SignWithPrivKey( // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/client/tx#SignWithPrivKey
+		txConfig.SignModeHandler().DefaultMode(),
+		signerData,
+		txBuilder,
+		from.privKey,
+		txConfig,
+		sequence)
+	if err != nil {
+		log.Fatalf("tx.SignWithPrivKey Sign error %s", err)
+	}
+	err = txBuilder.SetSignatures(sigV2)
+	if err != nil {
+		log.Fatalf("txBuilder.SetSignatures error %s", err)
+	}
+
+	// generate transaction
+	txBytes, err := txConfig.TxEncoder()(txBuilder.GetTx())
+	if err != nil {
+		log.Fatalf("txConfig.TxEncoder error %s", err)
+	}
+	fmt.Println("RAW transaction", string(txBytes))
+
+	//TODO: not works printing to json
+	// jsonBytes, err := txConfig.TxJSONEncoder()(txBuilder.GetTx())
+	// if err != nil {
+	// 	log.Fatalf("txConfig.TxJSONEncoder error %s", err)
+	// }
+	// txJSON := string(jsonBytes)
+	// fmt.Println("json transaction", txJSON)
+
+	return txBytes
+}
+
+func broadcastTransaction(grpcConn *grpc.ClientConn, txBytes []byte) {
+	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
+	txClient := typestx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
+	grpcRes, err := txClient.BroadcastTx(          // We then call the BroadcastTx method on this client.
+		context.Background(),
+		&typestx.BroadcastTxRequest{ // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastTxRequest
+			Mode:    typestx.BroadcastMode_BROADCAST_MODE_SYNC, // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#BroadcastMode
+			TxBytes: txBytes,                                   // Proto-binary of the signed transaction, see previous step.
+		},
+	)
+	if err != nil {
+		log.Fatalf("txClient.BroadcastTx Error %s", err)
+	}
+	fmt.Println("GRPCResponse TXResponse", grpcRes.TxResponse) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
+	if grpcRes.TxResponse.Code == 0 {
+		fmt.Println("Transaction Submited correctly")
+	}
+}
+
+func waitForTransaction() {
 
 }
 
-func broacastTransaction() {
-
-}
-
-func verifyBalance(account sdk.Address, tag string, grpcConn *grpc.ClientConn) {
+func verifyBalance(grpcConn *grpc.ClientConn, account sdk.Address, tag string) {
 	// This creates a gRPC client to query the x/bank service.
 	bankClient := banktypes.NewQueryClient(grpcConn)
 
