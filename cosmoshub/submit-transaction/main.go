@@ -24,6 +24,7 @@ import (
 	accounts "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/go-bip39"
+	rpchttp "github.com/tendermint/rpc/client/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -355,6 +356,27 @@ func waitForTransaction() {
 	// https://docs.cosmos.network/master/core/events.html
 	// https://tutorials.cosmos.network/academy/2-main-concepts/events.html#subscribing-to-events
 	// https://docs.tendermint.com/v0.34/tendermint-core/subscription.html
+
+	// TENDERMINT RPC OPENAPI DOC:
+	// https://docs.tendermint.com/v0.34/rpc/
+	// 	CURL 	curl -X GET "https://rpc.sentry-01.theta-testnet.polypore.xyz/net_info" -H "accept: application/json"
+	// 	OPENAPI https://docs.tendermint.com/v0.34/rpc/#/Websocket/subscribe
+	//	GO DOC CLIENT RPC HTTP	https://pkg.go.dev/github.com/tendermint/tendermint/rpc/client/http
+	//  GO DOC CLIENT RPCJSON 	https://pkg.go.dev/github.com/tendermint/tendermint/rpc/jsonrpc/client
+	//  GO DOC GRPC 			https://pkg.go.dev/github.com/tendermint/tendermint/rpc/grpc
+
+	// CLIENT RPC HTTP OPTION https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP
+
+	// Create Connection https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#New
+	client := rpchttp.New("https://rpc.sentry-01.theta-testnet.polypore.xyz:26657", "/websocket")
+	// ws://
+	err := client.Start()
+	if err != nil {
+		log.Fatalf("rpchttp.Start Error %s", err)
+	}
+
+	// Subscribe https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP.Subscribe
+
 }
 
 func verifyBalance(grpcConn *grpc.ClientConn, account sdk.Address, tag string) {

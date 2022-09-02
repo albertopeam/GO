@@ -117,6 +117,7 @@ Making a transaction:
     * Generate transaction bytes
   * Broadcast the transaction bytes via grpc connection
   * Listen for the transaction result
+    * ?
   * Verify the balance in the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
 
 // TODO: Change/Inject from command line parameters
