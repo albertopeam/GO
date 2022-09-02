@@ -41,7 +41,6 @@ func (a account) String() string {
 
 func main() {
 	// Read State in mainnet
-	//TODO: restore code
 	//queryMainnetState()
 
 	// Write state in testnet
@@ -229,7 +228,7 @@ func createGrpcConn() *grpc.ClientConn {
 
 func getAccount(grpcConn *grpc.ClientConn, address sdk.Address) accounts.BaseAccount {
 	// query account https://pkg.go.dev/github.com/cosmos/cosmos-sdk/x/auth/types#QueryClient
-	accountRequest := accounts.QueryAccountRequest{Address: "cosmos19kzdcmysekqu926fwdcjg5pdqlx3saujcldys5"}
+	accountRequest := accounts.QueryAccountRequest{Address: address.String()}
 	accountClient := accounts.NewQueryClient(grpcConn)
 	fmt.Println(accountRequest, accountClient)
 	accRes, err := accountClient.Account(context.Background(), &accountRequest)
@@ -269,10 +268,11 @@ func createTransaction(from account, to account, accountNumber uint64, sequence 
 
 	// TODO: investigate gasMeter
 	// https://docs.cosmos.network/master/basics/gas-fees.html
+	// https://docs.cosmos.network/master/basics/tx-lifecycle.html
 
 	// setup limits https://docs.cosmos.network/v0.44/core/transactions.html#transaction-generation
-	txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewCoin("uatom", math.NewInt(1000)))) // the maximum amount the user is willing to pay in fees.
-	txBuilder.SetGasLimit(200_000)                                                // max units of gas
+	txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewCoin("uatom", math.NewInt(100)))) // the maximum amount the user is willing to pay in fees.
+	txBuilder.SetGasLimit(200_000)                                               // max units of gas
 
 	// Sign in transaction
 	// main info https://docs.cosmos.network/master/run-node/txs.html
@@ -352,7 +352,9 @@ func broadcastTransaction(grpcConn *grpc.ClientConn, txBytes []byte) {
 }
 
 func waitForTransaction() {
-
+	// https://docs.cosmos.network/master/core/events.html
+	// https://tutorials.cosmos.network/academy/2-main-concepts/events.html#subscribing-to-events
+	// https://docs.tendermint.com/v0.34/tendermint-core/subscription.html
 }
 
 func verifyBalance(grpcConn *grpc.ClientConn, account sdk.Address, tag string) {
