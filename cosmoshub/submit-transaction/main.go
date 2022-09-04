@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"cosmossdk.io/math"
 	clienttx "github.com/cosmos/cosmos-sdk/client/tx"
@@ -24,7 +25,10 @@ import (
 	accounts "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/go-bip39"
-	rpchttp "github.com/tendermint/rpc/client/http"
+
+	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
+	tenderminttypes "github.com/tendermint/tendermint/types"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -42,9 +46,9 @@ func (a account) String() string {
 
 func main() {
 	// Read State in mainnet
-	//queryMainnetState()
+	queryMainnetState()
 
-	// Write state in testnet
+	// load or create accounts
 	newAccounts := false //TODO: Change/Inject from command line parameters
 	var from, to account
 	if newAccounts {
@@ -52,9 +56,30 @@ func main() {
 	} else {
 		from, to = loadAccounts("from.txt", "to.txt")
 	}
+
+	// create grpc connection
+	grpcConn := createGrpcConn()
+	defer grpcConn.Close()
+
+	// print used accounts
 	printAccounts(from, to)
+
+	// verify balance before any transaction
+	verifyBalance(grpcConn, from.address, "from before")
+	verifyBalance(grpcConn, to.address, "to before")
+
+	// wait to have funds on from address
 	waitForUserToTransferCoinsTo(from)
-	sendTransaction(from, to)
+
+	// send transaction
+	tx := sendTransaction(grpcConn, from, to)
+
+	// wait for transaction
+	subscribeToTransactionConfirmation(tx)
+
+	// verify balance after the transaction
+	verifyBalance(grpcConn, from.address, "from after")
+	verifyBalance(grpcConn, to.address, "to after")
 }
 
 // full tutorial https://docs.cosmos.network/v0.46/run-node/interact-node.html
@@ -68,8 +93,9 @@ func queryMainnetState() {
 
 	// Create a connection to the gRPC server. doc https://pkg.go.dev/google.golang.org/grpc
 	// more info on how to find a host and port on https://github.com/cosmos/chain-registry/blob/master/cosmoshub/chain.json
+	// if grpc fails while dialing then run the query `curl -X GET "https://rpc.cosmos.network/net_info" -H "accept: application/json"` and use `remote_ip` instead
 	grpcConn, err := grpc.Dial(
-		"cosmoshub.strange.love:9090",
+		"54.180.225.240:9090",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.NewProtoCodec(nil).GRPCCodec())),
 	)
@@ -192,11 +218,7 @@ func waitForUserToTransferCoinsTo(from account) {
 	input.Scan()
 }
 
-func sendTransaction(from account, to account) {
-	// create grpc connection
-	grpcConn := createGrpcConn()
-	defer grpcConn.Close()
-
+func sendTransaction(grpcConn *grpc.ClientConn, from account, to account) *sdk.TxResponse {
 	// retrieve account number and sequence number.
 	var account = getAccount(grpcConn, from.address)
 
@@ -204,13 +226,7 @@ func sendTransaction(from account, to account) {
 	txBytes := createTransaction(from, to, account.GetAccountNumber(), account.GetSequence())
 
 	// broadcast transaction
-	broadcastTransaction(grpcConn, txBytes)
-
-	// wait for transaction
-	waitForTransaction()
-
-	// verify balance
-	verifyBalance(grpcConn, from.address, "from")
+	return broadcastTransaction(grpcConn, txBytes)
 }
 
 func createGrpcConn() *grpc.ClientConn {
@@ -333,7 +349,7 @@ func createTransaction(from account, to account, accountNumber uint64, sequence 
 	return txBytes
 }
 
-func broadcastTransaction(grpcConn *grpc.ClientConn, txBytes []byte) {
+func broadcastTransaction(grpcConn *grpc.ClientConn, txBytes []byte) *sdk.TxResponse {
 	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx service.
 	txClient := typestx.NewServiceClient(grpcConn) // https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types/tx#NewServiceClient
 	grpcRes, err := txClient.BroadcastTx(          // We then call the BroadcastTx method on this client.
@@ -348,11 +364,12 @@ func broadcastTransaction(grpcConn *grpc.ClientConn, txBytes []byte) {
 	}
 	fmt.Println("GRPCResponse TXResponse", grpcRes.TxResponse) // Should be `0` if the tx is successful https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 	if grpcRes.TxResponse.Code == 0 {
-		fmt.Println("Transaction Submited correctly")
+		fmt.Println("Transaction Submited correctly", grpcRes.TxResponse.TxHash)
 	}
+	return grpcRes.TxResponse
 }
 
-func waitForTransaction() {
+func subscribeToTransactionConfirmation(txRes *sdk.TxResponse) {
 	// https://docs.cosmos.network/master/core/events.html
 	// https://tutorials.cosmos.network/academy/2-main-concepts/events.html#subscribing-to-events
 	// https://docs.tendermint.com/v0.34/tendermint-core/subscription.html
@@ -362,21 +379,41 @@ func waitForTransaction() {
 	// 	CURL 	curl -X GET "https://rpc.sentry-01.theta-testnet.polypore.xyz/net_info" -H "accept: application/json"
 	// 	OPENAPI https://docs.tendermint.com/v0.34/rpc/#/Websocket/subscribe
 	//	GO DOC CLIENT RPC HTTP	https://pkg.go.dev/github.com/tendermint/tendermint/rpc/client/http
+	// Alternatives:
 	//  GO DOC CLIENT RPCJSON 	https://pkg.go.dev/github.com/tendermint/tendermint/rpc/jsonrpc/client
-	//  GO DOC GRPC 			https://pkg.go.dev/github.com/tendermint/tendermint/rpc/grpc
+	//  ¿GO DOC GRPC? 			https://pkg.go.dev/github.com/tendermint/tendermint/rpc/grpc
 
-	// CLIENT RPC HTTP OPTION https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP
+	// Using CLIENT RPC HTTP OPTION https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP
 
 	// Create Connection https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#New
-	client := rpchttp.New("https://rpc.sentry-01.theta-testnet.polypore.xyz:26657", "/websocket")
-	// ws://
-	err := client.Start()
+	client, err := rpchttp.New("https://rpc.sentry-01.theta-testnet.polypore.xyz:26657", "/websocket")
 	if err != nil {
 		log.Fatalf("rpchttp.Start Error %s", err)
 	}
+	// Start the client
+	err = client.Start()
+	if err != nil {
+		log.Fatalf("rpchttp.Start Error %s", err)
+	}
+	// Stop the client when the function ends
+	defer client.Stop()
 
-	// Subscribe https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP.Subscribe
+	// Subscribe via query to events
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	// doc for events https://pkg.go.dev/github.com/tendermint/tendermint/types#pkg-constants
+	// doc for queries https://pkg.go.dev/github.com/tendermint/tendermint/libs/pubsub/query
+	// doc for query syntax https://pkg.go.dev/github.com/tendermint/tendermint/libs/pubsub/query/syntax
+	query := fmt.Sprintf("tm.event = 'Tx' AND tx.hash = '%s'", txRes.TxHash)
+	fmt.Println("subscribe query", query)
+	txs, err := client.Subscribe(ctx, "wait for tx", query) // Subscribe https://pkg.go.dev/github.com/tendermint/tendermint@v0.35.9/rpc/client/http#HTTP.Subscribe
+	if err != nil {
+		log.Fatalf("rpchttp.Subscribe Error %s", err)
+	}
 
+	// Receive events
+	event := <-txs
+	fmt.Println("got ", event.Data.(tenderminttypes.EventDataTx))
 }
 
 func verifyBalance(grpcConn *grpc.ClientConn, account sdk.Address, tag string) {

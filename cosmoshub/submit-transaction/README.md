@@ -93,11 +93,15 @@ Signing a transaction [cosmos sdk](https://github.com/cosmos/cosmos-sdk/blob/mai
 
 Making a transaction:
 
+* Load or create an account
+  * Change the bool value `newAccounts := true` if you want to create a new account
+  * Otherwise it will use the `from` and `to` files that contains the default seeds
 * Before start its needed to fund your address with some atom(testnet atom has no real value). Go to [discord](https://discord.com/channels/669268347736686612/953697793476821092) and request some atom to the faucet channel bot
   * Command: `$request [cosmos-address] theta`
   * Review received atom on the expected adddress in the [tesnet explorer](https://explorer.theta-testnet.polypore.xyz/account/) to check funded wallet
-* Create the transaction:
-  * Create a GRPC connection that we will use in some of the next steps.
+* Verify the balance in the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
+* Create a GRPC connection that we will use in some of the next steps.
+* Create the transaction:  
   * Get accountNumber and sequence querying the x/auth module
     * Using the GRPC connection query Account for an address
     * Unpack response
@@ -115,10 +119,11 @@ Making a transaction:
       * Populate the SignerInfo
       * Sign the SignDoc (the payload to be signed)
     * Generate transaction bytes
-  * Broadcast the transaction bytes via grpc connection
-  * Listen for the transaction result
-    * ?
-  * Verify the balance in the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
+* Broadcast the transaction bytes via grpc connection
+* Listen for the transaction result
+  * Create the Http client & Start it
+  * Subscribe to a Transaction event(via query) that will listen for the transaction hash that we create while broadcast
+* Verify the balance in the destination address in a [explorer](https://explorer.theta-testnet.polypore.xyz)
 
 // TODO: Change/Inject from command line parameters
 // TODO: investigate how to get current network avg gas price
@@ -126,7 +131,6 @@ Making a transaction:
 // TODO: not works printing to json
 //TODO: restore code
 //TODO: move account/sequence number get submit transaction
-//TODO: wait/listen tx success. NOT only GRPC result == 0
 // TODO: investigate gasMeter
 
 review this doc: https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
