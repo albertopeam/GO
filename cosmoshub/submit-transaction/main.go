@@ -45,9 +45,6 @@ func (a account) String() string {
 }
 
 func main() {
-	// Read State in mainnet
-	queryMainnetState()
-
 	// load or create accounts
 	newAccounts := false //TODO: Change/Inject from command line parameters
 	var from, to account
@@ -82,63 +79,21 @@ func main() {
 	verifyBalance(grpcConn, to.address, "to after")
 }
 
-// full tutorial https://docs.cosmos.network/v0.46/run-node/interact-node.html
-func queryMainnetState() {
-	// create an addr. doc https://pkg.go.dev/github.com/cosmos/cosmos-sdk/types
-	sg1Addr, err := sdk.AccAddressFromBech32("cosmos196ax4vc0lwpxndu9dyhvca7jhxp70rmcfhxsrt")
-	if err != nil {
-		log.Fatalf("Error %s", err)
-	}
-	fmt.Println("using", sg1Addr.String())
-
-	// Create a connection to the gRPC server. doc https://pkg.go.dev/google.golang.org/grpc
-	// more info on how to find a host and port on https://github.com/cosmos/chain-registry/blob/master/cosmoshub/chain.json
-	// if grpc fails while dialing then run the query `curl -X GET "https://rpc.cosmos.network/net_info" -H "accept: application/json"` and use `remote_ip` instead
-	grpcConn, err := grpc.Dial(
-		"54.180.225.240:9090",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.NewProtoCodec(nil).GRPCCodec())),
-	)
-	if err != nil {
-		log.Fatalf("Error %s", err)
-	}
-	defer grpcConn.Close()
-	fmt.Println("open gRPC connection", grpcConn.Target())
-
-	// This creates a gRPC client to query the x/bank service.
-	bankClient := banktypes.NewQueryClient(grpcConn)
-
-	// query uatom balance for an account
-	bankRes, err := bankClient.Balance(context.Background(), &banktypes.QueryBalanceRequest{Address: sg1Addr.String(), Denom: "uatom"})
-	if err != nil {
-		log.Fatalf("Error %s", err)
-	}
-	fmt.Println("atom balance", bankRes.String())
-
-	// query all balances for an account
-	bankAllRes, err := bankClient.AllBalances(context.Background(), &banktypes.QueryAllBalancesRequest{Address: sg1Addr.String()})
-	if err != nil {
-		log.Fatalf("Error %s", err)
-	}
-	fmt.Println("all balances", bankAllRes.String())
-	fmt.Println("-----------------------------------")
-}
-
 func printAccounts(from account, to account) {
 	fmt.Println("from", from)
 	fmt.Println("to", to)
 }
 
 // Load from disk if exists the files or creates new accounts
-//DOC
+// DOC
 // https://en.wikipedia.org/wiki/Digital_signature
 // https://pkg.go.dev/github.com/cosmos/go-bip39#section-readme
 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/keys/secp256k1
 // https://pkg.go.dev/github.com/cosmos/cosmos-sdk@v0.46.0/crypto/hd
-//BIP39
+// BIP39
 // https://github.com/cosmos/go-bip39 (COSMOS FORK)
 // https://iancoleman.io/bip39/#english
-//BIP44
+// BIP44
 // https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#Purpose
 func loadAccounts(fromFile string, toFile string) (account, account) {
 	// Read from disk
