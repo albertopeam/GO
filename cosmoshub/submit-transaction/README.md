@@ -129,8 +129,6 @@ Making a transaction:
 // TODO: investigate how to get current network avg gas price
 // TODO: investigate fee
 // TODO: not works printing to json
-//TODO: restore code
-//TODO: move account/sequence number get submit transaction
 // TODO: investigate gasMeter
 
 review this doc: https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#account  https://iancoleman.io/bip39/#english
